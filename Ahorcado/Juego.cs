@@ -17,6 +17,7 @@ namespace Ahorcado
         public static readonly object l = new object();
         public int puerto = 31416;
         public string[] todasPalabras;
+        public string[] records;
         public string Leepalabra()
         {
             string linea;
@@ -80,6 +81,29 @@ namespace Ahorcado
             }
             return mensaje;
         }
+
+        public void guardarRecord(string record)
+        {
+            if (record != null)
+            {
+                lock (l)
+                {
+                    try
+                    {
+                        using (StreamWriter sw = new StreamWriter(Environment.GetEnvironmentVariable("USERPROFILE") + "/records.txt", true))
+                        {
+                            sw.WriteLine(record);
+                        }
+                    }
+                    catch (IOException e)
+                    {
+
+                        Console.WriteLine(e.Message);
+                    }
+                }
+            }
+
+        }
         public void iniciar()
         {
             bool conexion = true;
@@ -110,9 +134,13 @@ namespace Ahorcado
         {
             bool conexion = true;
             bool bienvenida = true;
+            char caracter;
             string[] mensaje;
             string opcion;
             string opcion2 = "";
+            string cadena;
+            string cadenaRemplazada = "";
+            int vidas = 5;
             Socket sCliente = (Socket)socket;
             IPEndPoint ieCliente = (IPEndPoint)sCliente.RemoteEndPoint;
             Console.WriteLine("Conectado cliente {0} en puerto {1}", ieCliente.Address, ieCliente.Port);
@@ -149,8 +177,85 @@ namespace Ahorcado
                             switch (opcion.ToLower())
                             {
                                 case "getword":
-                                    sw.WriteLine(Leepalabra());
-                                    sw.Flush();
+                                    int aciertos = 0;
+                                    bool flagPintar = true;
+                                    cadena = Leepalabra().ToLower();
+                                    char[] caracteresPalabra = new char[cadena.Length];
+                                    char[] adivinar = new char[cadena.Length];
+
+                                    while (vidas != 0 && aciertos != adivinar.Length)
+                                    {
+                                        if (flagPintar)//Rellenamos arrays y dibujamos los *
+                                        {
+                                            for (int i = 0; i < cadena.Length; i++)
+                                            {
+                                                caracteresPalabra[i] = cadena[i];
+                                                adivinar[i] = '*';
+                                            }
+                                            foreach (char item in adivinar)
+                                            {
+                                                sw.Write(item);
+                                                sw.Flush();
+
+                                            }
+                                            flagPintar = false;
+                                        }
+
+
+                                        sw.WriteLine(" Inserta caracter - {0} intentos restantes", vidas);
+                                        sw.Flush();
+                                        try
+                                        {
+                                            caracter = Convert.ToChar(sr.ReadLine().ToLower());
+
+                                            for (int i = 0; i < caracteresPalabra.Length; i++)
+                                            {
+                                                if (caracteresPalabra[i] == caracter)
+                                                {
+                                                    adivinar[i] = caracter;
+                                                    aciertos++;
+                                                    vidas++;
+
+                                                }
+
+                                            }
+                                            foreach (char item in adivinar)
+                                            {
+                                                sw.Write(item);
+                                                sw.Flush();
+
+                                            }
+
+                                        }
+                                        catch (ArgumentNullException)
+                                        {
+
+                                        }
+                                        catch (FormatException)
+                                        {
+
+                                        }
+                                        catch (NullReferenceException)
+                                        {
+
+                                        }
+
+
+                                        vidas--;
+                                    }
+                                    if (aciertos == adivinar.Length)
+                                    {
+
+                                        sw.WriteLine("\r\n Enhorabuena la acertaste !!");
+                                        sw.Flush();
+
+                                    }
+                                    else
+                                    {
+                                        sw.WriteLine("\r\n Fin del juego !! la palabra era {0}",cadena);
+                                        sw.Flush();
+                                    }
+                                  
                                     break;
                                 case "sendword":
                                     if (opcion2 != "")
