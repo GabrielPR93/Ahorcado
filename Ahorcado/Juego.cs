@@ -86,6 +86,7 @@ namespace Ahorcado
         {
             if (record != null)
             {
+
                 lock (l)
                 {
                     try
@@ -93,6 +94,7 @@ namespace Ahorcado
                         using (StreamWriter sw = new StreamWriter(Environment.GetEnvironmentVariable("USERPROFILE") + "/records.txt", true))
                         {
                             sw.WriteLine(record);
+
                         }
                     }
                     catch (IOException e)
@@ -102,7 +104,29 @@ namespace Ahorcado
                     }
                 }
             }
+        }
 
+        public string leeRecords()
+        {
+            string linea;
+            string cadena = "";
+            try
+            {
+                using (StreamReader sr = new StreamReader(Environment.GetEnvironmentVariable("USERPROFILE") + "/records.txt"))
+                {
+                    while ((linea = sr.ReadLine()) != null)
+                    {
+                        cadena += linea + "\r\n";
+                    }
+                }
+            }
+            catch (IOException e)
+            {
+
+                Console.WriteLine(e.Message);
+            }
+
+            return cadena;
         }
         public void iniciar()
         {
@@ -135,12 +159,12 @@ namespace Ahorcado
             bool conexion = true;
             bool bienvenida = true;
             char caracter;
+            string caracterInsertado;
             string[] mensaje;
             string opcion;
             string opcion2 = "";
+
             string cadena;
-            string cadenaRemplazada = "";
-            int vidas = 5;
             Socket sCliente = (Socket)socket;
             IPEndPoint ieCliente = (IPEndPoint)sCliente.RemoteEndPoint;
             Console.WriteLine("Conectado cliente {0} en puerto {1}", ieCliente.Address, ieCliente.Port);
@@ -172,12 +196,15 @@ namespace Ahorcado
                                 mensaje = opcion.Split(' ');
                                 opcion = mensaje[0];
                                 opcion2 = mensaje[1];
+
+
                             }
 
                             switch (opcion.ToLower())
                             {
                                 case "getword":
                                     int aciertos = 0;
+                                    int vidas = 5;
                                     bool flagPintar = true;
                                     cadena = Leepalabra().ToLower();
                                     char[] caracteresPalabra = new char[cadena.Length];
@@ -206,26 +233,37 @@ namespace Ahorcado
                                         sw.Flush();
                                         try
                                         {
-                                            caracter = Convert.ToChar(sr.ReadLine().ToLower());
+                                            caracterInsertado = sr.ReadLine();
 
-                                            for (int i = 0; i < caracteresPalabra.Length; i++)
+                                            if (caracterInsertado != null)
                                             {
-                                                if (caracteresPalabra[i] == caracter)
+                                                caracter = Convert.ToChar(caracterInsertado.ToLower());
+
+                                                if (caracteresPalabra.Contains(caracter))
                                                 {
-                                                    adivinar[i] = caracter;
-                                                    aciertos++;
-                                                    vidas++;
+                                                    for (int i = 0; i < caracteresPalabra.Length; i++)
+                                                    {
+                                                        if (caracteresPalabra[i] == caracter)
+                                                        {
+                                                            adivinar[i] = caracter;
+                                                            aciertos++;
+
+
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    vidas--;
+                                                }
+                                                foreach (char item in adivinar)
+                                                {
+                                                    sw.Write(item);
+                                                    sw.Flush();
 
                                                 }
 
                                             }
-                                            foreach (char item in adivinar)
-                                            {
-                                                sw.Write(item);
-                                                sw.Flush();
-
-                                            }
-
                                         }
                                         catch (ArgumentNullException)
                                         {
@@ -235,34 +273,53 @@ namespace Ahorcado
                                         {
 
                                         }
-                                        catch (NullReferenceException)
-                                        {
-
-                                        }
 
 
-                                        vidas--;
+
+                                        //vidas--;
                                     }
                                     if (aciertos == adivinar.Length)
                                     {
 
                                         sw.WriteLine("\r\n Enhorabuena la acertaste !!");
+                                        sw.WriteLine("\r\n Introduce 3 iniciales para guardar record");
                                         sw.Flush();
+
+                                        string nombre = sr.ReadLine();
+                                        if (nombre != null)
+                                        {
+                                            try
+                                            {
+                                                guardarRecord(String.Format("{0} aciertos {1}", nombre, aciertos));
+                                                sw.WriteLine("\r\n Record guardado correctamente");
+                                                sw.Flush();
+                                            }
+                                            catch (FormatException e)
+                                            {
+
+                                                Console.WriteLine(e.Message);
+                                            }
+
+                                        }
 
                                     }
                                     else
                                     {
-                                        sw.WriteLine("\r\n Fin del juego !! la palabra era {0}",cadena);
+                                        sw.WriteLine("\r\n Fin del juego !! la palabra era {0}", cadena);
                                         sw.Flush();
                                     }
-                                  
+
                                     break;
                                 case "sendword":
                                     if (opcion2 != "")
                                     {
-                                        sw.WriteLine(guardarPalabra(opcion2));
-                                        sw.Flush();
+                                        lock (l)
+                                        {
 
+                                            sw.WriteLine(guardarPalabra(opcion2));
+                                            sw.Flush();
+                                            opcion2 = "";
+                                        }
                                     }
                                     else
                                     {
@@ -271,8 +328,47 @@ namespace Ahorcado
                                     }
                                     break;
                                 case "getrecords":
+
+                                    lock (l)
+                                    {
+                                        sw.WriteLine(leeRecords());
+                                        sw.Flush();
+
+                                    }
                                     break;
                                 case "sendrecord":
+                                    string iniciales;
+                                    string puntuaciones;
+                                    if (opcion2 != "")
+                                    {
+                                        try
+                                        {
+                                            iniciales = opcion2.Substring(0, 3);
+                                            puntuaciones = opcion2.Substring(3);
+                                            lock (l)
+                                            {
+                                                guardarRecord(String.Format("{0} aciertos {1}", iniciales, puntuaciones));
+                                                sw.WriteLine("Record guardado correctamente");
+                                                sw.Flush();
+                                            }
+                                        }
+                                        catch (FormatException e)
+                                        {
+
+                                            Console.WriteLine(e.Message);
+                                        }
+                                        catch (ArgumentOutOfRangeException e)
+                                        {
+
+                                            Console.WriteLine(e.Message);
+                                        }
+
+                                    }
+                                    else
+                                    {
+                                        sw.WriteLine("Error, para guardar un record inserte 3 iniciales seguido de la puntuacion. Ejemplo: sendrecord \"esp15\"");
+                                        sw.Flush();
+                                    }
                                     break;
                                 case "closeserver":
                                     break;
