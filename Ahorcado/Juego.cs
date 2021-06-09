@@ -17,15 +17,13 @@ namespace Ahorcado
         public static readonly object l = new object();
         public int puerto = 31416;
         public string[] todasPalabras;
-        public string[] records;
+        private Socket s;
         public string Leepalabra()
         {
             string linea;
-
             int num = 0;
             try
             {
-
                 using (StreamReader sr = new StreamReader(Environment.GetEnvironmentVariable("USERPROFILE") + "/palabras.txt"))
                 {
                     while ((linea = sr.ReadLine()) != null)
@@ -54,30 +52,28 @@ namespace Ahorcado
 
             if (palabra != null)
             {
-                lock (l)
+                Leepalabra();//solo para guardar todas las palabras
+                if (!todasPalabras.Contains(palabra))
                 {
-                    Leepalabra();//solo para guardar todas las palabras
-                    if (!todasPalabras.Contains(palabra))
+                    try
                     {
-                        try
+                        using (StreamWriter sw = new StreamWriter(Environment.GetEnvironmentVariable("USERPROFILE") + "/palabras.txt", true))
                         {
-                            using (StreamWriter sw = new StreamWriter(Environment.GetEnvironmentVariable("USERPROFILE") + "/palabras.txt", true))
-                            {
-                                sw.Write("," + palabra);
-                                mensaje = "Palabra guardada correctamente";
-                            }
-                        }
-                        catch (IOException e)
-                        {
-
-                            Console.WriteLine(e.Message);
+                            sw.Write("," + palabra);
+                            mensaje = "Palabra guardada correctamente";
                         }
                     }
-                    else
+                    catch (IOException e)
                     {
-                        mensaje = "El archivo ya contiene esa palabra";
+
+                        Console.WriteLine(e.Message);
                     }
                 }
+                else
+                {
+                    mensaje = "El archivo ya contiene esa palabra";
+                }
+
             }
             return mensaje;
         }
@@ -86,22 +82,18 @@ namespace Ahorcado
         {
             if (record != null)
             {
-
-                lock (l)
+                try
                 {
-                    try
+                    using (StreamWriter sw = new StreamWriter(Environment.GetEnvironmentVariable("USERPROFILE") + "/records.txt", true))
                     {
-                        using (StreamWriter sw = new StreamWriter(Environment.GetEnvironmentVariable("USERPROFILE") + "/records.txt", true))
-                        {
-                            sw.WriteLine(record);
+                        sw.WriteLine(record);
 
-                        }
                     }
-                    catch (IOException e)
-                    {
+                }
+                catch (IOException e)
+                {
 
-                        Console.WriteLine(e.Message);
-                    }
+                    Console.WriteLine(e.Message);
                 }
             }
         }
@@ -132,7 +124,7 @@ namespace Ahorcado
         {
             bool conexion = true;
             IPEndPoint ie = new IPEndPoint(IPAddress.Any, puerto);
-            Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             try
             {
@@ -148,9 +140,26 @@ namespace Ahorcado
 
             while (conexion)
             {
-                Socket sClient = s.Accept();
-                Thread hilo = new Thread(hiloCliente);
-                hilo.Start(sClient);
+                lock (l)
+                {
+                    if (conexion)
+                    {
+                        try
+                        {
+                            Socket sClient = s.Accept();
+                            Thread hilo = new Thread(hiloCliente);
+                            hilo.Start(sClient);
+                            hilo.IsBackground = true;
+
+                        }
+                        catch (SocketException)
+                        {
+                            conexion = false;
+
+                        }
+                    }
+                }
+
             }
         }
 
@@ -163,11 +172,11 @@ namespace Ahorcado
             string[] mensaje;
             string opcion;
             string opcion2 = "";
-
             string cadena;
             Socket sCliente = (Socket)socket;
             IPEndPoint ieCliente = (IPEndPoint)sCliente.RemoteEndPoint;
             Console.WriteLine("Conectado cliente {0} en puerto {1}", ieCliente.Address, ieCliente.Port);
+
             while (conexion)
             {
 
@@ -189,15 +198,13 @@ namespace Ahorcado
                         opcion = sr.ReadLine();                           // getword: El servidor envía una palabra al cliente.
                         if (opcion != null)                              // sendword palabra: El cliente le envía una palabra nueva al servidor
                         {                                               // getrecords: El servidor le envía la lista de records al cliente
-                                                                        // sendrecord record: El cliente le envía un nuevo récord al servidor.
-                                                                        // closeserver clave: cierra el servidor si se dispone de la clave adecuada.
+                                                                       // sendrecord record: El cliente le envía un nuevo récord al servidor.
+                                                                      // closeserver clave: cierra el servidor si se dispone de la clave adecuada.
                             if (opcion.IndexOf(' ') != -1)
                             {
                                 mensaje = opcion.Split(' ');
                                 opcion = mensaje[0];
                                 opcion2 = mensaje[1];
-
-
                             }
 
                             switch (opcion.ToLower())
@@ -262,27 +269,23 @@ namespace Ahorcado
                                                     sw.Flush();
 
                                                 }
-
                                             }
                                         }
-                                        catch (ArgumentNullException)
+                                        catch (ArgumentNullException e)
                                         {
-
+                                            Console.WriteLine(e.Message);
                                         }
-                                        catch (FormatException)
+                                        catch (FormatException e)
                                         {
-
+                                            Console.WriteLine(e.Message);
                                         }
 
-
-
-                                        //vidas--;
                                     }
                                     if (aciertos == adivinar.Length)
                                     {
 
                                         sw.WriteLine("\r\n Enhorabuena la acertaste !!");
-                                        sw.WriteLine("\r\n Introduce 3 iniciales para guardar record");
+                                        sw.WriteLine("\r\n Introduce 3 iniciales (nombre) para guardar record");
                                         sw.Flush();
 
                                         string nombre = sr.ReadLine();
@@ -296,12 +299,9 @@ namespace Ahorcado
                                             }
                                             catch (FormatException e)
                                             {
-
                                                 Console.WriteLine(e.Message);
                                             }
-
                                         }
-
                                     }
                                     else
                                     {
@@ -313,13 +313,9 @@ namespace Ahorcado
                                 case "sendword":
                                     if (opcion2 != "")
                                     {
-                                        lock (l)
-                                        {
-
-                                            sw.WriteLine(guardarPalabra(opcion2));
-                                            sw.Flush();
-                                            opcion2 = "";
-                                        }
+                                        sw.WriteLine(guardarPalabra(opcion2));
+                                        sw.Flush();
+                                        opcion2 = "";
                                     }
                                     else
                                     {
@@ -329,12 +325,9 @@ namespace Ahorcado
                                     break;
                                 case "getrecords":
 
-                                    lock (l)
-                                    {
-                                        sw.WriteLine(leeRecords());
-                                        sw.Flush();
+                                    sw.WriteLine(leeRecords());
+                                    sw.Flush();
 
-                                    }
                                     break;
                                 case "sendrecord":
                                     string iniciales;
@@ -345,21 +338,18 @@ namespace Ahorcado
                                         {
                                             iniciales = opcion2.Substring(0, 3);
                                             puntuaciones = opcion2.Substring(3);
-                                            lock (l)
-                                            {
-                                                guardarRecord(String.Format("{0} aciertos {1}", iniciales, puntuaciones));
-                                                sw.WriteLine("Record guardado correctamente");
-                                                sw.Flush();
-                                            }
+
+                                            guardarRecord(String.Format("{0} aciertos {1}", iniciales, puntuaciones));
+                                            sw.WriteLine("Record guardado correctamente");
+                                            sw.Flush();
+
                                         }
                                         catch (FormatException e)
                                         {
-
                                             Console.WriteLine(e.Message);
                                         }
                                         catch (ArgumentOutOfRangeException e)
                                         {
-
                                             Console.WriteLine(e.Message);
                                         }
 
@@ -371,6 +361,22 @@ namespace Ahorcado
                                     }
                                     break;
                                 case "closeserver":
+                                    if (opcion2 != "")
+                                    {
+                                        if (opcion2 == clave)
+                                        {
+                                            s.Close();
+                                            lock (l)
+                                            {
+                                                conexion = false;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            sw.WriteLine("-- Clave incorrecta --");
+                                            sw.Flush();
+                                        }
+                                    }
                                     break;
                                 default:
                                     break;
